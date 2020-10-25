@@ -11,38 +11,44 @@ aid for event planners!
 // Begin BASE SPECIFIC NAMES Section (adjust these values to fit your base!)
 
 const BaseSpecificNames = {
-    // Reservations Table
-    reservationsTable: "Reservations", // name of the [RESERVATIONS] table
-    assetField: "Room", // name of the link-type field connecting to the [ASSETS] table
-    startField: "Start Date",
-    endField: "End Date",
-    personField: "Customer", // name of the link-type field connection to the [PEOPLE] table
+    // Plants Table
+    plantsTable: "Plants", // name of the [PLANTS] table (was RESERVATIONS)
+    locationField: "Location", // name of the link-type field connecting to the [LOCATIONS] table (was ASSETS)
+    startField: "Planting Date",
+    endField: "Expected Harvest End",
+    plantsField: "Plant Name", // name of the link-type field connection to the [PLANTS] table (was PEOPLE)
 
-    // Assets Table
-    assetsTable: "Rooms", // name of the [ASSETS] table
-    assetName: "Room #", // name of the primary field in the [ASSETS] table
-    reservationsField: "Reservations",
+    // Locations Table (was ASSETS)
+    locationsTable: "Locations", // name of the [LOCATIONS] table (was assetsTable)
+    locationName: "Location ID", // name of the primary field in the [LOCATIONS] (was ASSETS) table (was assetName)
+    locationType: "Location Type",
+    plantingsField: "Planting Records",
 
-    // People Table
-    peopleTable: "People", // name of the [PEOPLE] table
-    peopleName: "Name" // name of the primary field in the [PEOPLE] table
+    // Varieties Table (was PEOPLE)
+    varietiesTable: "Varieties", // name of the [VARIETIES] table (was Table)
+    varietiesName: "Name", // name of the primary field in the [PLANTS] (was PEOPLE) table (was peopleName)
+    daysToMaturity: "Max Maturity"
+    
 }
 
 // End BASE SPECIFIC NAMES Section (everything below should work without the need for further adjustment.)
 
 // Begin VARIABLE DECLARATIONS Section
 
-const peopleTable = base.getTable(BaseSpecificNames.peopleTable);
+const varietiesTable = base.getTable(BaseSpecificNames.varietiesTable);
+const varietiesQuery = await varietiesTable.selectRecordsAsync();
+const allVarieties = varietiesQuery.records;
 
-const reservationsTable = base.getTable(BaseSpecificNames.reservationsTable);
-const reservationsQuery = await reservationsTable.selectRecordsAsync();
-const allReservations = reservationsQuery.records;
+const plantsTable = base.getTable(BaseSpecificNames.plantsTable);
+const plantsQuery = await plantsTable.selectRecordsAsync();
+const allPlants = plantsQuery.records;
 
-const assetsTable = base.getTable(BaseSpecificNames.assetsTable);
-const assetsQuery = await assetsTable.selectRecordsAsync({sorts: [{field: BaseSpecificNames.assetName}]});
-const allAssets = assetsQuery.records;
+const locationsTable = base.getTable(BaseSpecificNames.locationsTable);
+const locationsQuery = await locationsTable.selectRecordsAsync({sorts: [{field: BaseSpecificNames.locationName}]});
+const allLocations = locationsQuery.records;
 
-let conflicts, unavailableAssets, availableAssets;
+
+let conflicts, unavailableLocations, availableLocations;
 let overlaps = [];
 let altered = [];
 let unaltered = [];
@@ -51,149 +57,159 @@ let unaltered = [];
 
 // Begin FUNCTIONS Section
 
-async function findConflictingReservations(startDate, endDate) {
+async function findConflictingPlants(startDate, endDate) {
     conflicts = [];
-    for (let reservation of allReservations) {
-        let compareStart = new Date(reservation.getCellValue(BaseSpecificNames.startField)).toISOString();
-        let compareEnd = new Date(reservation.getCellValue(BaseSpecificNames.endField)).toISOString();
-
+    for (let plant of allPlants) {
+        let compareStart = new Date(plant.getCellValue(BaseSpecificNames.startField)).toISOString();
+        let compareEnd = new Date(plant.getCellValue(BaseSpecificNames.endField)).toISOString();
+          
         if ((compareStart >= startDate && compareStart <= endDate) || startDate >= compareStart && startDate <= compareEnd || (compareStart <= startDate && compareEnd >= endDate)) {
-            conflicts.push(reservation.id);
+            conflicts.push(plant.id);
         };
     }
 }
 
-async function setUnavailableAssets() {
-    unavailableAssets = [];
+async function setUnavailableLocations() {
+    unavailableLocations = [];
     for (var i = 0; i < conflicts.length; i++) {
-        let reservation = reservationsQuery.getRecord(conflicts[i]);
-        let asset = reservation.getCellValueAsString(BaseSpecificNames.assetField);
-        unavailableAssets.push(asset);
+        let plant = plantsQuery.getRecord(conflicts[i]);
+        let location = plant.getCellValueAsString(BaseSpecificNames.locationField);
+        unavailableLocations.push(location);
     };
 }
 
-async function setAvailableAssets() {
-    availableAssets = [];
-    availableAssets = allAssets.filter(record => {
-        let assetName = record.getCellValue(BaseSpecificNames.assetName);
-        return assetName !== null && ! unavailableAssets.includes(assetName);
+async function setAvailableLocations() {
+    availableLocations = [];
+    availableLocations = allLocations.filter(record => {
+        let locationName = record.getCellValue(BaseSpecificNames.locationName);
+        return locationName !== null && ! unavailableLocations.includes(locationName);
     });
 }
 
 // End FUNCTIONS Section
 
 
-output.markdown(`# Ultimate Booking Scheduler`)
+output.markdown(`# Planting Scheduler`)
 
 let mode = await input.buttonsAsync('What would you like to do?',[
-    {label: 'Book a New Reservation', value: 'book', variant: 'primary'},
+    {label: 'Schedule a New Plant', value: 'book', variant: 'primary'},
     {label: 'Resolve Scheduling Conflicts', value: 'resolve', variant: 'danger'}
 ]);
 
 output.markdown('---');
 
 if (mode == 'book') {
-    output.markdown(`## Schedule a New ${BaseSpecificNames.assetField} Reservation`);
+    output.markdown(`## Schedule a New ${BaseSpecificNames.locationField} Planting`);
 
-    let person = await input.recordAsync("Reserve a " + BaseSpecificNames.assetField + " For:", peopleTable, {shouldAllowCreatingRecord: true});
-
+    let plant = await input.recordAsync("Reserve a " + BaseSpecificNames.locationField + " For:", varietiesTable, {shouldAllowCreatingRecord: true});
     let startInput = await input.textAsync("Start Date (YYYY-MM-DD):");
     let startDate = new Date(startInput).toISOString();
+    endInput.setDate(startDate.getDate() + Date(BaseSpecificNames.daysToMaturity)); // TO SOLVE - ADD MATURITY DAYS TO STARTDATE
+    let endDate = new Date(endInput).toISOString(); 
 
-    let endInput = await input.textAsync("End Date (YYYY-MM-DD):");
-    let endDate = new Date(endInput).toISOString();
+output.text(BaseSpecificNames.daysToMaturity);
+output.text(endDate).toISOString());
 
-    findConflictingReservations(startDate, endDate);
 
-    setUnavailableAssets();
 
-    setAvailableAssets();
 
-    if (availableAssets.length > 0) {
 
-        let selectedAsset = await input.recordAsync("Requested " + BaseSpecificNames.assetField + ":", availableAssets);
+
+
+
+    findConflictingPlants(startDate, endDate);
+
+    setUnavailableLocations();
+
+    setAvailableLocations();
+
+    if (availableLocations.length > 0) {
+
+        let selectedLocation = await input.recordAsync("Requested " + BaseSpecificNames.locationField + ":", availableLocations);
         
-        if (selectedAsset) {
-            output.markdown(`You are about to reserve **${selectedAsset.name}** for **${person.name}** from **${startInput}** to **${endInput}**.`);
+        if (selectedLocation) {
+            output.markdown(`You are about to reserve **${selectedLocation.name}** for **${plant.name}** from **${startInput}** to **${endDate}**.`); // modified from endInput to endDate to reflect the auto-generated end date based on start date
 
-            let confirmed = await input.buttonsAsync('',[{label: 'Confirm Reservation', value: 'true', variant: 'primary'}]);
+            let confirmed = await input.buttonsAsync('',[{label: 'Confirm Plant', value: 'true', variant: 'primary'}]);
 
             if (confirmed) {
-                await reservationsTable.createRecordAsync({
-                        [BaseSpecificNames.assetField]: [{id: selectedAsset.id}],
-                        [BaseSpecificNames.personField]: [{id: person.id}],
+                await plantsTable.createRecordAsync({
+                        [BaseSpecificNames.locationField]: [{id: selectedLocation.id}],
+                        [BaseSpecificNames.plantsField]: [{id: plant.id}],
                         [BaseSpecificNames.startField]: startDate,
                         [BaseSpecificNames.endField]: endDate
                     })
-                output.markdown(`*Your reservation was booked successfully. Please run the script again to book another reservation or to check for scheduling conflicts.*`)
+                output.markdown(`*Your planting was scheduled successfully. Please run the script again to book another planting or to check for scheduling conflicts.*`)
             }
         } else {
-            output.markdown(`#### No ${BaseSpecificNames.assetField} was selected. Please run the script again and select a ${BaseSpecificNames.assetField}.`)
+            output.markdown(`#### No ${BaseSpecificNames.locationField} was selected. Please run the script again and select a ${BaseSpecificNames.locationField}.`)
         }
     }
 
     else {
-        output.markdown(`#### Unfortunately, there are no available ${BaseSpecificNames.assetsTable} for this date range. Please run the script again and select new dates.`)
+        output.markdown(`#### Unfortunately, there are no available ${BaseSpecificNames.locationsTable} for this date range. Please run the script again and select new dates.`)
     }
 
 } else {
-    output.markdown(`## Check for Conflicting ${BaseSpecificNames.assetField} ${BaseSpecificNames.reservationsTable}`);
+    output.markdown(`## Check for Conflicting ${BaseSpecificNames.locationField} ${BaseSpecificNames.plantsTable}`);
     
-    let reservationsChecked = [];
+    let plantsChecked = [];
     
-    for (let asset of allAssets) {
+    for (let location of allLocations) {
         let conflictingRecords = new Set();
-        let conflictingReservationsNames = new Set();
+        let conflictingPlantsNames = new Set();
 
-        let linkedReservations = allReservations.filter(record => {
-            let assetFieldValues = record.getCellValueAsString(BaseSpecificNames.assetField);
-            return assetFieldValues !== null && assetFieldValues.includes(asset.name);
+        let linkedPlants = allPlants.filter(record => {
+            let locationFieldValues = record.getCellValueAsString(BaseSpecificNames.locationField);
+            return locationFieldValues !== null && locationFieldValues.includes(location.name);
         });
 
-        for (let reservation of linkedReservations) {
-            let startDate = new Date(reservation.getCellValue(BaseSpecificNames.startField)).toISOString();
-            let endDate= new Date(reservation.getCellValue(BaseSpecificNames.endField)).toISOString();
+        for (let plant of linkedPlants) {
+            let startDate = new Date(plant.getCellValue(BaseSpecificNames.startField)).toISOString();
+            let endDate = new Date(plant.getCellValue(BaseSpecificNames.endField)).toISOString();
 
-            reservationsChecked.push(reservation.id);
+            plantsChecked.push(plant.id);
 
-            for (let currentReservation of linkedReservations) {
-                if (!reservationsChecked.includes(currentReservation.id)) {
-                    let compareStart = new Date(currentReservation.getCellValue(BaseSpecificNames.startField)).toISOString();
-                    let compareEnd = new Date(currentReservation.getCellValue(BaseSpecificNames.endField)).toISOString();
+            for (let currentPlant of linkedPlants) {
+                if (!plantsChecked.includes(currentPlant.id)) {
+                    let compareStart = new Date(currentPlant.getCellValue(BaseSpecificNames.startField)).toISOString();
+                    let compareEnd = new Date(currentPlant.getCellValue(BaseSpecificNames.endField)).toISOString();
+                    
+                    
 
                     if ((startDate >= compareStart && startDate <= compareEnd) || compareStart >= startDate && compareStart <= endDate || (startDate <= compareStart && endDate >= compareEnd)) {
-                        conflictingRecords.add(reservation);
-                        conflictingRecords.add(currentReservation);
-                        conflictingReservationsNames.add(reservation.name);
-                        conflictingReservationsNames.add(currentReservation.name);
+                        conflictingRecords.add(plant);
+                        conflictingRecords.add(currentPlant);
+                        conflictingPlantsNames.add(plant.name);
+                        conflictingPlantsNames.add(currentPlant.name);
                     }
                 }
             }
         }
         
         if (conflictingRecords.size > 0) {
-            overlaps.push({Asset: asset, ConflictingRecords: conflictingRecords, ConflictingRecordsNames: conflictingReservationsNames});
+            overlaps.push({Location: location, ConflictingRecords: conflictingRecords, ConflictingRecordsNames: conflictingPlantsNames});
         }
     }
     if (overlaps.length > 0) {
-        output.markdown(`#### The following (${overlaps.length}) ${BaseSpecificNames.assetsTable} have scheduling conflicts:`);
+        output.markdown(`#### The following (${overlaps.length}) ${BaseSpecificNames.plantsTable} have scheduling conflicts:`);
         output.table(overlaps.map( conflict => ({
-            [BaseSpecificNames.assetField]: conflict.Asset.getCellValue(BaseSpecificNames.assetName),
-            ['Conflicting ' + BaseSpecificNames.reservationsTable]: [...conflict.ConflictingRecordsNames].sort().join(', '),
+            [BaseSpecificNames.locationField]: conflict.Location.getCellValue(BaseSpecificNames.locationName),
+            ['Conflicting ' + BaseSpecificNames.plantsTable]: [...conflict.ConflictingRecordsNames].sort().join(', '),
             'Count': conflict.ConflictingRecords.size
         })))
-        output.markdown(`*You will now be asked to resolve each of the scheduling conflicts shown above, one at a time. Conflicts will be grouped by ${BaseSpecificNames.assetField}. For each conflict you will be given the choice to change the ${BaseSpecificNames.assetField}, change the dates, or skip to the next conflict.*`);
+        output.markdown(`*You will now be asked to resolve each of the conflicts shown above, one at a time. Conflicts will be grouped by ${BaseSpecificNames.locationField}. For each conflict you will be given the choice to change the ${BaseSpecificNames.locationField}, change the dates, or skip to the next conflict.*`);
         let beginResolve = await input.buttonsAsync('',[{label: 'Begin', variant: 'primary'}])
         
         for (let overlap of overlaps) {
             output.clear();
-            output.markdown(`#### Conflicting ${BaseSpecificNames.assetField} ${BaseSpecificNames.reservationsTable} for ${overlap.Asset.name}`)
+            output.markdown(`#### Conflicting ${BaseSpecificNames.locationField} ${BaseSpecificNames.plantsTable} for ${overlap.Location.name}`)
             let conflictingRecords = overlap.ConflictingRecords;
             output.table(Array.from(conflictingRecords).map(record => ({
                 Name: record.name,
                 Start: record.getCellValueAsString(BaseSpecificNames.startField),
                 End: record.getCellValueAsString(BaseSpecificNames.endField),
-                [BaseSpecificNames.personField]: record.getCellValueAsString(BaseSpecificNames.personField)
+                [BaseSpecificNames.plantsField]: record.getCellValueAsString(BaseSpecificNames.plantsField)
             })));
 
             output.markdown('---');
@@ -204,7 +220,7 @@ if (mode == 'book') {
                 index ++;
                 output.markdown(`**${index}. ${currentRecord.name}**`)
                 let method = await input.buttonsAsync('What would you like to do to this record?',[
-                    {label: 'Change the ' + BaseSpecificNames.assetField, value: 'reassign', variant: 'primary'},
+                    {label: 'Change the ' + BaseSpecificNames.locationField, value: 'reassign', variant: 'primary'},
                     {label: 'Change the Dates', value: 'reschedule', variant: 'primary'},
                     {label: 'Skip', value: 'skip', variant: 'default'}
                 ])
@@ -212,37 +228,38 @@ if (mode == 'book') {
                     let startDate = new Date(currentRecord.getCellValue(BaseSpecificNames.startField)).toISOString();
                     let endDate = new Date(currentRecord.getCellValue(BaseSpecificNames.endField)).toISOString();
 
-                    findConflictingReservations(startDate, endDate)
+                    findConflictingPlants(startDate, endDate)
 
-                    setUnavailableAssets();
+                    setUnavailableLocations();
 
-                    setAvailableAssets();
+                    setAvailableLocations();
 
-                    if (availableAssets.length > 0) {
-                        let selectedAsset = await input.recordAsync("New " + BaseSpecificNames.assetField + ":", availableAssets);
+                    if (availableLocations.length > 0) {
+                        let selectedLocation = await input.recordAsync("New " + BaseSpecificNames.locationField + ":", availableLocations);
 
-                        if (selectedAsset) {
+                        if (selectedLocation) {
                             
-                            await reservationsTable.updateRecordAsync(currentRecord.id, {[BaseSpecificNames.assetField]: [{id: selectedAsset.id}]});
-                            output.markdown(`**Success!** *New Details: ${selectedAsset.name} from ${startDate} to ${endDate}*`);
+                            await plantsTable.updateRecordAsync(currentRecord.id, {[BaseSpecificNames.locationField]: [{id: selectedLocation.id}]});
+                            output.markdown(`**Success!** *New Details: ${selectedLocation.name} from ${startDate} to ${endDate}*`);
                             altered.push(currentRecord);
                         } else {
-                            output.markdown(`**WARNING:** *No changes were made to this record because no ${BaseSpecificNames.assetField} was selected.*`);
+                            output.markdown(`**WARNING:** *No changes were made to this record because no ${BaseSpecificNames.locationField} was selected.*`);
                             unaltered.push(currentRecord);
                         }
                     } else {
-                        output.markdown(`*Unfortunately, there are no available ${BaseSpecificNames.assetsTable} for this date range. Please run the script again and select new dates.*`);
+                        output.markdown(`*Unfortunately, there are no available ${BaseSpecificNames.locationsTable} for this date range. Please run the script again and select new dates.*`);
                         unaltered.push(currentRecord);
                     }
                 } else if (method == 'reschedule') {
                     let newStart = await input.textAsync("New Start Date (YYYY-MM-DD):");
                     let startDate = new Date(newStart).toISOString();
 
-                    let newEnd = await input.textAsync("New End Date (YYYY-MM-DD):");
+                    //let newEnd = await input.textAsync("New End Date (YYYY-MM-DD):"); //replacing free selection with addition of Max Maturity
+                    let newEnd = new Date(newStart + BaseSpecificNames.daysToMaturitymaxMaturityField);
                     let endDate = new Date(newEnd).toISOString();
 
-                    await reservationsTable.updateRecordAsync(currentRecord.id, {[BaseSpecificNames.startField]: startDate,[BaseSpecificNames.endField]: endDate});
-                    output.markdown(`**Success!** *New Details: ${currentRecord.getCellValueAsString(BaseSpecificNames.assetField)} from ${startDate} to ${endDate}*`);
+                    await plantsTable.updateRecordAsync(currentRecord.id, {[BaseSpecificNames.startField]: startDate,[BaseSpecificNames.endField]: endDate});
+                    output.markdown(`**Success!** *New Details: ${currentRecord.getCellValueAsString(BaseSpecificNames.locationField)} from ${startDate} to ${endDate}*`);
                     altered.push(currentRecord);
                 } else if (method == 'skip') {
                     output.markdown(`*No changes were made for ${currentRecord.name}.*`);
@@ -250,21 +267,21 @@ if (mode == 'book') {
                 }
                 output.markdown('---');
             }
-            output.markdown(`**End of shceduling conflicts for ${overlap.Asset.name}**`);
+            output.markdown(`**End of scheduling conflicts for ${overlap.Location.name}**`);
             let next = await input.buttonsAsync('',['Continue']);
         }
         output.clear();
-        output.markdown(`#### Done! All conflicting ${BaseSpecificNames.assetField} ${BaseSpecificNames.reservationsTable} have been dealt with.`);
+        output.markdown(`#### Done! All conflicting ${BaseSpecificNames.locationField} ${BaseSpecificNames.plantsTable} have been dealt with.`);
         
-        output.markdown(`##### Altered ${BaseSpecificNames.assetField} ${BaseSpecificNames.reservationsTable}: ${altered.length}`)
+        output.markdown(`##### Altered ${BaseSpecificNames.locationField} ${BaseSpecificNames.plantsTable}: ${altered.length}`)
         output.table(altered);
 
-        output.markdown(`##### Unaltered ${BaseSpecificNames.assetField} ${BaseSpecificNames.reservationsTable}: ${unaltered.length}`)
+        output.markdown(`##### Unaltered ${BaseSpecificNames.locationField} ${BaseSpecificNames.plantsTable}: ${unaltered.length}`)
         output.table(unaltered);
         
-        output.markdown(`*Please run the script again to book a new reservation or to re-check for scheduling conflicts.*`);
+        output.markdown(`*Please run the script again to book a new planting or to re-check for conflicts.*`);
     } else {
-        output.markdown(`#### Good News! There are no conflicting ${BaseSpecificNames.assetField} ${BaseSpecificNames.reservationsTable}.`);
-        output.markdown(`*Please run the script again to book a new reservation.*`);
+        output.markdown(`#### Good News! There are no conflicting ${BaseSpecificNames.locationField} ${BaseSpecificNames.plantsTable}.`);
+        output.markdown(`*Please run the script again to book a new planting.*`);
     }
 }
