@@ -19,7 +19,7 @@ const BaseSpecificNames = {
     personField: "Plant Name", // name of the link-type field connection to the [PEOPLE] table
 
     // Assets Table
-    assetsTable: "Location", // name of the [ASSETS] table
+    assetsTable: "Locations", // name of the [ASSETS] table
     assetName: "Location ID", // name of the primary field in the [ASSETS] table
     reservationsField: "Planting Records",
 
