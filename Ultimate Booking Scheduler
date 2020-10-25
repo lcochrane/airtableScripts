@@ -12,19 +12,19 @@ aid for event planners!
 
 const BaseSpecificNames = {
     // Reservations Table
-    reservationsTable: "Reservations", // name of the [RESERVATIONS] table
-    assetField: "Room", // name of the link-type field connecting to the [ASSETS] table
-    startField: "Start Date",
-    endField: "End Date",
-    personField: "Customer", // name of the link-type field connection to the [PEOPLE] table
+    reservationsTable: "Plants", // name of the [RESERVATIONS] table
+    assetField: "Location", // name of the link-type field connecting to the [ASSETS] table
+    startField: "Planting Date",
+    endField: "Expected Harvest End",
+    personField: "Plant Name", // name of the link-type field connection to the [PEOPLE] table
 
     // Assets Table
-    assetsTable: "Rooms", // name of the [ASSETS] table
-    assetName: "Room #", // name of the primary field in the [ASSETS] table
-    reservationsField: "Reservations",
+    assetsTable: "Location", // name of the [ASSETS] table
+    assetName: "Location ID", // name of the primary field in the [ASSETS] table
+    reservationsField: "Planting Records",
 
     // People Table
-    peopleTable: "People", // name of the [PEOPLE] table
+    peopleTable: "Varieties", // name of the [PEOPLE] table
     peopleName: "Name" // name of the primary field in the [PEOPLE] table
 }
 
